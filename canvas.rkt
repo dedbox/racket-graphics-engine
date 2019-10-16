@@ -5,7 +5,9 @@
          graphics-engine/private
          opengl
          racket/class
-         racket/gui/base)
+         racket/gui/base
+         (for-syntax racket/base
+                     syntax/strip-context))
 
 (provide (all-defined-out))
 
@@ -13,81 +15,71 @@
 
 (define (quit) (send the-canvas quit))
 
+(define-syntax-rule (GL> body ...)
+  (send the-canvas with-gl-context (λ () body ...)))
+
 (define opengl-canvas%
   (class canvas%
-
-    (init-field [verbose? #f          ]
-                [version  #f          ]
-                [clear-color (vec3)   ]
-                [mode  GL_FILL        ])
-
-    ;; --
-
+    (init-field [verbose?    #f     ]
+                [version     #f     ]
+                [clear-color (vec3) ]
+                [mode        GL_FILL])
     (field [done? #f])
+    (inherit with-gl-context)
 
     (define/public (quit)
       (set! done? #t))
-
-    ;; --
-
-    (inherit with-gl-context)
-
-    (define-syntax-rule (GL> body ...)
-      (with-gl-context (λ () body ...)))
-
-    ;; ---
 
     (define/public (info msg . args)
       (when verbose?
         (displayln (format "canvas: ~a" (apply format msg args)))))
 
-    ;; --
+    (define-syntax-rule (GL>> body ...)
+      (with-gl-context (λ () body ...)))
 
     (define config (new gl-config%))
 
     (define-syntax-rule (send-config/info name expr)
       (let ([val expr]) (info "~a ~a" 'name val) (send config name val)))
 
-    (send-config/info set-double-buffered #t)
-    (send-config/info set-depth-size      24)
-    (send-config/info set-stencil-size     0)
-    (send-config/info set-multisample-size 0)
+    ;; (send-config/info set-double-buffered #t)
+    ;; (send-config/info set-depth-size      24)
+    ;; (send-config/info set-stencil-size     0)
+    ;; (send-config/info set-multisample-size 0)
     (send-config/info set-legacy?         #f)
 
     (super-new [style '(gl no-autoclear)]
                [gl-config config])
 
-    ;; --
+    (GL>>
+      (info "detected OpenGL version ~a" (gl-version))
+      (when version
+        (info "want Opengl version ~a" version)
+        (unless (gl-version-at-least? version)
+          (info "aborting!")
+          (exit 1)))
+      (info   "vendor: ~a" (glGetString GL_VENDOR  ))
+      (info "renderer: ~a" (glGetString GL_RENDERER))
 
-    (GL> (info "detected OpenGL version ~a" (gl-version))
-         (when version
-           (info "want Opengl version ~a" version)
-           (unless (gl-version-at-least? version)
-             (info "aborting!")
-             (exit 1)))
-         (info   "vendor: ~a" (glGetString GL_VENDOR  ))
-         (info "renderer: ~a" (glGetString GL_RENDERER))
+      (define flags (s32vector-ref (glGetIntegerv GL_CONTEXT_FLAGS) 0))
+      (if (zero? (bitwise-and flags GL_CONTEXT_FLAG_DEBUG_BIT))
+          (info "debug mode not supported")
+          (info "debug mode supported"))
 
-         (define flags (s32vector-ref (glGetIntegerv GL_CONTEXT_FLAGS) 0))
-         (if (zero? (bitwise-and flags GL_CONTEXT_FLAG_DEBUG_BIT))
-             (info "debug mode not supported")
-             (info "debug mode supported"))
+      ;; (glEnable GL_DEPTH_TEST)
+      ;; (info "depth test enabled")
 
-         (glEnable GL_DEPTH_TEST)
-         (info "depth test enabled")
+      ;; (glEnable GL_CULL_FACE)
+      ;; (info "face culling enabled")
 
-         (glEnable GL_CULL_FACE)
-         (info "face culling enabled")
-
-         (apply glClearColor (vec->list clear-color))
-         (glClearDepth 1.0))
-
-    ;; --
+      (apply glClearColor (vec->list clear-color))
+      ;; (glClearDepth 1.0)
+      )
 
     (define/override (on-size width height)
       (info "resizing to ~ax~a" width height)
       (info "new aspect ratio is ~a" (/ width height))
-      (GL> (glViewport 0 0 width height)))
+      (GL>> (glViewport 0 0 width height)))
 
     (define/override (on-char event)
       (info "unhandled key: ~v ~v ~v ~v ~v ~v ~v"
@@ -110,18 +102,17 @@
             (send event get-time-stamp))
       (super on-char event))
 
-    ;; --
-
     (define/public (clear)
-      (GL> (glClear (bitwise-ior GL_COLOR_BUFFER_BIT
-                                 GL_DEPTH_BUFFER_BIT))))))
+      (GL>> (glClear (bitwise-ior GL_COLOR_BUFFER_BIT
+                                  ;; GL_DEPTH_BUFFER_BIT
+                                  ))))))
 
 (define (key-mods event)
   (apply append
          (if (send event get-shift-down) '(shift) null)
          (if (send event get-control-down) '(control) null)
          (if (send event get-meta-down) '(meta) null)
-         (if (send event  get-alt-down) '( alt) null)
+         (if (send event  get-alt-down) '(alt)  null)
          (if (send event get-caps-down) '(caps) null)
          (if (send event get-mod3-down) '(mod3) null)
          (if (send event get-mod4-down) '(mod4) null)
@@ -129,9 +120,9 @@
 
 (define (mouse-buttons event)
   (apply append
-         (if (send event   get-left-down) '(  left) null)
+         (if (send event   get-left-down) '(left)   null)
          (if (send event get-middle-down) '(middle) null)
-         (if (send event  get-right-down) '( right) null)))
+         (if (send event  get-right-down) '(right)  null)))
 
 (define (clear [canvas (current-canvas)])
   (send canvas clear))

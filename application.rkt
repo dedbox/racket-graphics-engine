@@ -31,13 +31,14 @@
      (parameterize ([current-frame  frame ]
                     [current-canvas canvas])
        (info "starting")
-       (on-start)
+       (send canvas with-gl-context (λ () (on-start)))
        (send frame show #t)
        (send canvas focus)
        (collect-garbage)
        (let loop ([state draw0-args])
          (collect-garbage 'incremental)
-         (define new-state (call-with-values (λ () (apply on-draw state)) list))
+         (define new-state
+           (call-with-values (λ () (GL> (apply on-draw state))) list))
          (unless (get-field done? canvas) (loop new-state))))
      (info "exiting")
      (exit))))
