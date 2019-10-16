@@ -12,6 +12,10 @@
 
 (provide (all-defined-out))
 
+(define current-frame (make-parameter #f))
+
+(define-syntax the-frame (make-variable-like-transformer #'(current-frame)))
+
 (struct application (frame canvas on-start on-draw draw0-args)
   #:transparent
   #:name gfx:application
@@ -24,20 +28,16 @@
      (define (info msg . args)
        (when (get-field verbose? canvas)
          (displayln (format "application: ~a" (apply format msg args)))))
-
-     (info "starting")
-     (on-start frame canvas)
-
-     (send frame show #t)
-     (send canvas focus)
-     (collect-garbage)
-
-     (parameterize ([current-canvas canvas])
+     (parameterize ([current-frame  frame ]
+                    [current-canvas canvas])
+       (info "starting")
+       (on-start)
+       (send frame show #t)
+       (send canvas focus)
+       (collect-garbage)
        (let loop ([state draw0-args])
          (collect-garbage 'incremental)
          (define new-state (call-with-values (λ () (apply on-draw state)) list))
          (unless (get-field done? canvas) (loop new-state))))
-
      (info "exiting")
-
      (exit))))

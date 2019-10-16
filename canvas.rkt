@@ -9,9 +9,9 @@
 
 (provide (all-defined-out))
 
-(define UNHANDLED (string->unreadable-symbol "UNHANDLED"))
+(define-the-thing the-canvas current-canvas)
 
-(define current-canvas (make-parameter #f))
+(define (quit) (send the-canvas quit))
 
 (define opengl-canvas%
   (class canvas%
@@ -19,9 +19,7 @@
     (init-field [verbose? #f          ]
                 [version  #f          ]
                 [clear-color (vec3)   ]
-                [mode  GL_FILL        ]
-                [keys  (λ _ UNHANDLED)]
-                [mouse (λ _ UNHANDLED)])
+                [mode  GL_FILL        ])
 
     ;; --
 
@@ -39,7 +37,7 @@
 
     ;; ---
 
-    (define (info msg . args)
+    (define/public (info msg . args)
       (when verbose?
         (displayln (format "canvas: ~a" (apply format msg args)))))
 
@@ -92,16 +90,24 @@
       (GL> (glViewport 0 0 width height)))
 
     (define/override (on-char event)
-      (info "unhandled key: ~v ~v"
+      (info "unhandled key: ~v ~v ~v ~v ~v ~v ~v"
             (send event get-key-code)
-            (send event get-key-release-code))
+            (send event get-key-release-code)
+            (key-mods event)
+            (send event get-x)
+            (send event get-y)
+            (send event get-time-stamp)
+            (send event get-control+meta-is-altgr))
       (super on-char event))
 
     (define/override (on-event event)
-      (info "unhandled mouse: ~v ~v ~v"
+      (info "unhandled mouse: ~v ~v ~v ~v ~v ~v"
             (send event get-event-type)
             (send event get-x)
-            (send event get-y))
+            (send event get-y)
+            (mouse-buttons event)
+            (key-mods event)
+            (send event get-time-stamp))
       (super on-char event))
 
     ;; --
@@ -109,6 +115,23 @@
     (define/public (clear)
       (GL> (glClear (bitwise-ior GL_COLOR_BUFFER_BIT
                                  GL_DEPTH_BUFFER_BIT))))))
+
+(define (key-mods event)
+  (apply append
+         (if (send event get-shift-down) '(shift) null)
+         (if (send event get-control-down) '(control) null)
+         (if (send event get-meta-down) '(meta) null)
+         (if (send event  get-alt-down) '( alt) null)
+         (if (send event get-caps-down) '(caps) null)
+         (if (send event get-mod3-down) '(mod3) null)
+         (if (send event get-mod4-down) '(mod4) null)
+         (if (send event get-mod5-down) '(mod5) null)))
+
+(define (mouse-buttons event)
+  (apply append
+         (if (send event   get-left-down) '(  left) null)
+         (if (send event get-middle-down) '(middle) null)
+         (if (send event  get-right-down) '( right) null)))
 
 (define (clear [canvas (current-canvas)])
   (send canvas clear))

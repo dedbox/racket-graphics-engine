@@ -1,100 +1,140 @@
 #lang racket/base
 
 (require graphics-engine
+         graphics-engine/private
          racket/base
          racket/match
          syntax/parse/define
          (for-syntax racket/base
                      racket/function
-                     syntax/strip-context))
+                     syntax/strip-context
+                     syntax/transformer))
 
-(provide (all-from-out graphics-engine)
+(provide current-canvas%
+         current-application
+         current-application-thread
+         the-canvas%
+         the-application
+         the-application-thread
+         (all-from-out graphics-engine)
          (except-out (all-from-out racket/base) #%module-begin)
          (rename-out [module-begin #%module-begin]))
 
+(define-the-things
+  [the-canvas%            current-canvas%           ]
+  [the-application        current-application       ]
+  [the-application-thread current-application-thread])
+
+(begin-for-syntax
+  (define-syntax-class (lam len)
+    #:description #f
+    #:attributes (name [arg 1] arg0 [args0 1] [body 1] [_ 1])
+    #:literals (λ lambda)
+    (pattern (~and ((~and (~or λ lambda) name) (arg ...) body ...)
+                   (~bind [(_ 1) (build-list (- len (length (syntax->list #'(arg ...))))
+                                             (λ _ #'_))]))
+             #:with (~or () (arg0 args0 ...)) #'(arg ...))))
+
 (define-syntax-parser module-begin
   #:literals (λ lambda)
-  [(_ (~alt (~optional (~seq #:title          title:expr))
-            (~optional (~seq #:canvas canvas-class%:expr))
-            (~optional (~seq #:min-width      width:expr))
-            (~optional (~seq #:min-height    height:expr))
-            (~optional (~seq #:clear-color    color:expr))
-            (~optional (~seq #:verbose?       info?:expr))
-            (~optional (~seq #:on-start    do-start:expr))
-            (~optional (~seq #:on-draw ((~or λ lambda)
-                                        (~or draw-rest:id
-                                             ([draw-var:id draw-arg:expr] ...))
-                                        do-draw:expr ...)))
-            (~seq #:on-key (key0:expr key1:expr) do-key:expr)
-            (~seq #:on-key-press     press-k:expr   do-key-press:expr)
-            (~seq #:on-key-release release-k:expr do-key-release:expr)
-            (~seq #:on-mouse (mouse0:expr mouse-x:expr  mouse-y:expr)           do-mouse:expr)
-(~optional (~seq #:on-mouse-motion         (motion-x:expr motion-y:expr) do-mouse-motion:expr))
-(~optional (~seq #:on-mouse-enter          ( enter-x:expr  enter-y:expr)  do-mouse-enter:expr))
-(~optional (~seq #:on-mouse-leave          ( leave-x:expr  leave-y:expr)  do-mouse-leave:expr))
-(~optional (~seq #:on-mouse-press-left     ( ldown-x:expr  ldown-y:expr)  do-mouse-ldown:expr))
-(~optional (~seq #:on-mouse-press-right    ( rdown-x:expr  rdown-y:expr)  do-mouse-rdown:expr))
-(~optional (~seq #:on-mouse-press-middle   ( mdown-x:expr  mdown-y:expr)  do-mouse-mdown:expr))
-(~optional (~seq #:on-mouse-release-left   (   lup-x:expr    lup-y:expr)    do-mouse-lup:expr))
-(~optional (~seq #:on-mouse-release-right  (   rup-x:expr    rup-y:expr)    do-mouse-rup:expr))
-(~optional (~seq #:on-mouse-release-middle (   mup-x:expr    mup-y:expr)    do-mouse-mup:expr))
-(~optional (~seq #:on-mouse-wheel-down do-mouse-wheeld:expr))
-(~optional (~seq #:on-mouse-wheel-up   do-mouse-wheelu:expr))
-            form:expr)
+  [(_ (~alt
+       (~optional (~seq #:title       ~! title:expr))
+       (~optional (~seq #:min-width   ~! width:expr))
+       (~optional (~seq #:min-height  ~! height:expr))
+       (~optional (~seq #:clear-color ~! color:expr))
+       (~optional (~seq #:verbose?    ~! info?:expr))
+       (~optional (~seq #:canvas   ~! (~var canvas-class% (lam 0))))
+       (~optional (~seq #:on-start ~! (~var start (lam 0))))
+       (~optional (~seq #:on-size  ~! (~var size  (lam 2))))
+       (~optional (~seq #:on-draw  ~!
+                        ((~or λ lambda)
+                         (~or draw-rest0:id
+                              ([draw-var:id draw-arg:expr] ...)
+                              ([draw-var:id draw-arg:expr] ... . draw-rest:id))
+                         do-draw:expr ...)))
+       (~seq #:on-key         ~! (~var key       (lam 7)))
+       (~seq #:on-key-press   ~! (~var k-press   (lam 6)))
+       (~seq #:on-key-release ~! (~var k-release (lam 6)))
+       (~seq #:on-mouse       ~! (~var mouse     (lam 6)))
+       (~optional (~seq #:on-mouse-wheel     ~! (~var m-wheel      (lam 7))))
+       (~optional (~seq #:on-mouse-wheel-up  ~! (~var m-wheel-up   (lam 7))))
+       (~optional (~seq #:on-mouse-motion    ~! (~var m-motion     (lam 5))))
+       (~optional (~seq #:on-mouse-enter     ~! (~var m-enter      (lam 5))))
+       (~optional (~seq #:on-mouse-leave     ~! (~var m-leave      (lam 5))))
+       (~optional (~seq #:on-mouse-left      ~! (~var m-left       (lam 5))))
+       (~optional (~seq #:on-mouse-right     ~! (~var m-right      (lam 5))))
+       (~optional (~seq #:on-mouse-middle    ~! (~var m-middle     (lam 5))))
+       (~optional (~seq #:on-mouse-left-up   ~! (~var m-left-up    (lam 5))))
+       (~optional (~seq #:on-mouse-right-up  ~! (~var m-right-up   (lam 5))))
+       (~optional (~seq #:on-mouse-middle-up ~! (~var m-middle-up  (lam 5))))
+       form:expr)
       ...)
-   #'(#%module-begin
+
+   (syntax/loc this-syntax
+     (#%module-begin
 
       (require racket/class
                racket/gui/base)
 
-      (provide the-frame the-canvas% the-canvas the-application
-               the-application-thread)
-
       form ...
 
-      (define the-frame (new frame% [label (~? title "graphics-engine")]))
+      (current-frame (new frame% [label (~? title "graphics-engine")]))
 
-      (define the-canvas%
-        (class (~? canvas-class% opengl-canvas%)
-          (super-new)
-          (define/override (on-char event)
-            (match* ((send event get-key-code)
-                     (send event get-key-release-code))
-              (~? [('wheel-down 'press) do-mouse-wheeld])
-              (~? [('wheel-up   'press) do-mouse-wheelu])
-              [( press-k 'press   ) do-key-press  ] ...
-              [('release release-k) do-key-release] ...
-              [(key0     key1     ) do-key        ] ...
-              [(_        _        ) (super on-char event)]))
-          (define/override (on-event event)
-            (match* ((send event get-event-type)
-                     (send event get-x)
-                     (send event get-y))
-              (~? [(     'motion motion-x motion-y) do-mouse-motion])
-              (~? [(      'enter  enter-x  enter-y) do-mouse-enter ])
-              (~? [(      'leave  leave-x  leave-y) do-mouse-leave ])
-              (~? [(  'left-down  ldown-x  ldown-y) do-mouse-ldown ])
-              (~? [( 'right-down  rdown-x  rdown-y) do-mouse-rdown ])
-              (~? [('middle-down  mdown-x  mdown-y) do-mouse-mdown ])
-              (~? [(    'left-up    lup-x    lup-y) do-mouse-lup   ])
-              (~? [(   'right-up    rup-x    rup-y) do-mouse-rup   ])
-              (~? [(  'middle-up    mup-x    mup-y) do-mouse-mup   ])
-              [(mouse0 mouse-x mouse-y) do-mouse] ...
-              [(_      _       _      ) (super on-event event)]))))
+      (current-canvas%
+       (class (~? ((λ () canvas-class%.body ...)) opengl-canvas%)
+         (super-new)
 
-      (define the-canvas (new the-canvas%
-                              [     parent the-frame        ]
-                              [  min-width (~? width  800  )]
-                              [ min-height (~? height 600  )]
-                              [   verbose? (~? info?  #f   )]
-                              [clear-color (~? color  black)]))
+         (~? (define/override (on-size size.arg ...) size.body ...))
 
-      (define the-application
-        (application
-         the-frame the-canvas
-         (~? do-start void)
-         (~? (~@ (λ draw-rest do-draw ...) null)
-             (~? (~@ (λ (draw-var ...) do-draw ...) (list draw-arg ...))
-                 (~@ values null)))))
+         (define/override (on-char event)
+           (match* ((send event get-key-code)
+                    (send event get-key-release-code)
+                    (key-mods event)
+                    (send event get-x)
+                    (send event get-y)
+                    (send event get-time-stamp)
+                    (send event get-control+meta-is-altgr))
+             (~? [('wheel-down 'press  m-wheel.arg ...    m-wheel._ ...)    m-wheel.body ...])
+             (~? [('wheel-up 'press m-wheel-up.arg ... m-wheel-up._ ...) m-wheel-up.body ...])
+             [(k-press.arg0 'press k-press.args0 ... k-press._ ...) k-press.body ...] ...
+             [('release k-release.arg ... k-release._ ...) k-release.body ...] ...
+             [(key.arg ... key._ ...) key.body ...] ...
+             [(_ _ _ _ _ _ _) (super on-char event)]))
 
-      (define the-application-thread (run the-application)))])
+         (define/override (on-event event)
+           (match* ((send event get-event-type)
+                    (send event get-x)
+                    (send event get-y)
+                    (mouse-buttons event)
+                    (key-mods event)
+                    (send event get-time-stamp))
+             (~? [(     'motion    m-motion.arg ...    m-motion._ ...)    m-motion.body ...])
+             (~? [(      'enter     m-enter.arg ...     m-enter._ ...)     m-enter.body ...])
+             (~? [(      'leave     m-leave.arg ...     m-leave._ ...)     m-leave.body ...])
+             (~? [(  'left-down      m-left.arg ...      m-left._ ...)      m-left.body ...])
+             (~? [( 'right-down     m-right.arg ...     m-right._ ...)     m-right.body ...])
+             (~? [('middle-down    m-middle.arg ...    m-middle._ ...)    m-middle.body ...])
+             (~? [(    'left-up   m-left-up.arg ...   m-left-up._ ...)   m-left-up.body ...])
+             (~? [(   'right-up  m-right-up.arg ...  m-right-up._ ...)  m-right-up.body ...])
+             (~? [(  'middle-up m-middle-up.arg ... m-middle-up._ ...) m-middle-up.body ...])
+             [(mouse.arg ... mouse._ ...) mouse.body ...] ...
+             [(_ _ _ _ _ _) (super on-event event)]))))
+
+      (current-canvas (new (current-canvas%)
+                           [parent      the-frame       ]
+                           [min-width   (~? width  800) ]
+                           [min-height  (~? height 600) ]
+                           [verbose?    (~? info?  #f ) ]
+                           [clear-color (~? color black)]))
+
+      (current-application
+       (application
+        (current-frame)
+        (current-canvas)
+        (~? (λ () start.body ...) void)
+        (~? (~@ (λ (~? draw-rest0 (~? (draw-var ... . draw-rest) (draw-var ...)))
+                  do-draw ...)
+                (~? (list draw-arg ...) null))
+            (~@ values null))))
+
+      (current-application-thread (run (current-application)))))])

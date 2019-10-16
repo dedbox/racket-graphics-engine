@@ -2,4 +2,4 @@
 
 ;; #:verbose? #t
 
-#:on-start (λ _ (printf "Hello, world!\n"))
+#:on-start (λ () (displayln "Hello, world!"))

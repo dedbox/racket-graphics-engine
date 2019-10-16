@@ -1,7 +1,5 @@
 #lang graphics-engine
 
-(require racket/class)
-
-#:on-key-press 'escape (send this quit)
 #:clear-color blue
+#:on-key-press (λ ('escape) (quit))
 #:on-draw (λ _ (clear) (swap-buffers))
