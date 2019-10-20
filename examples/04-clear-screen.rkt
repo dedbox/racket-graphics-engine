@@ -1,5 +1,5 @@
 #lang graphics-engine
 
 #:clear-color blue
-#:on-key-press (λ ('escape) (quit))
+#:on-key-press (μ ('escape) (quit))
 #:on-draw (λ _ (clear) (swap-buffers))

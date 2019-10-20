@@ -4,7 +4,11 @@
   graphics-engine/application
   graphics-engine/canvas
   graphics-engine/color
-  graphics-engine/vector)
+  graphics-engine/drawable
+  ;; graphics-engine/scene
+  graphics-engine/shader
+  graphics-engine/vector
+  graphics-engine/vertex)
 
 (require 'exports)
 

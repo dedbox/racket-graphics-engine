@@ -1,4 +1,4 @@
 #lang graphics-engine
 
 #:verbose? #t
-#:on-key-press (λ ('escape) (quit))
+#:on-key-press (μ ('escape) (quit))

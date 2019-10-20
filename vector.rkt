@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require glm)
+(require ffi/vector
+         glm)
 
 (provide (all-defined-out))
 
@@ -14,6 +15,9 @@
 
 (define-values ($ $+ $- $* $/ $? $list in-$)
   (values vec vec+ vec- vec* vec/ vec? vec->list in-vec))
+
+(define ($f32vector . args)
+  (vec->f32vector (apply vec args)))
 
 (define-values ($1 $1?) (values vec1 vec1?))
 (define-values ($2 $2?) (values vec2 vec2?))

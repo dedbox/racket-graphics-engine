@@ -22,10 +22,10 @@
     (define/public (warp-pointer-to-center)
       (warp-pointer mid-x mid-y))))
 
-#:on-key-press (λ ('escape) (quit))
+#:on-key-press (μ ('escape) (quit))
 
 #:on-mouse-motion
-(λ (x y)
+(μ (x y)
   (define-values (Δx Δy) (send the-canvas pointer-offset x y))
   (unless (and (zero? Δx) (zero? Δy))
     (printf "Δx=~a Δy=~a\n" Δx Δy)

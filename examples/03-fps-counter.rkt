@@ -8,16 +8,18 @@
 #:verbose?   #t
 #:min-width  64
 #:min-height 64
-#:on-key-press (λ ('escape) (quit))
-#:canvas (λ ()
-           (class opengl-canvas%
-             (super-new)
-             (inherit quit)
-             (define/override (on-char event)
-               (match* ((send event get-key-code)
-                        (send event get-key-release-code))
-                 [('release _) (void)]
-                 [(_ _) (super on-char event)]))))
+#:on-key-press (μ ('escape) (quit))
+
+#:canvas
+(λ ()
+  (class opengl-canvas%
+    (super-new)
+    (define/override (on-char event)
+      (match* ((send event get-key-code)
+               (send event get-key-release-code))
+        [('release _) (void)]
+        [(_ _) (super on-char event)]))))
+
 #:on-draw
 (λ ([ msecs (current-inexact-milliseconds)]
     [Δmsecs 0]

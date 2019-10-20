@@ -28,11 +28,11 @@
   [reposition position])
 
 #:verbose? #t
-#:on-key-press (λ (#\q '(meta)) (quit))
-#:on-key-press (λ ('escape)
+#:on-key-press (μ (#\q '(meta)) (quit))
+#:on-key-press (μ ('escape)
                  (set! gui-mode? (not gui-mode?))
                  (send the-canvas set-cursor (cursor))
                  ((if gui-mode? reposition recenter)))
-#:on-mouse-motion (λ (x y) (if gui-mode? (set-position! x y) (recenter)))
-#:on-size (λ (width height) (set-center! width height))
+#:on-mouse-motion (μ (x y) (if gui-mode? (set-position! x y) (recenter)))
+#:on-size (μ (width height) (set-center! width height))
 #:on-draw (λ _ (clear) (swap-buffers))

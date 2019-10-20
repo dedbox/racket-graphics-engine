@@ -13,22 +13,16 @@
 
 (define-the-thing the-canvas current-canvas)
 
-(define (quit) (send the-canvas quit))
-
 (define-syntax-rule (GL> body ...)
   (send the-canvas with-gl-context (λ () body ...)))
 
 (define opengl-canvas%
   (class canvas%
-    (init-field [verbose?    #f     ]
-                [version     #f     ]
-                [clear-color (vec3) ]
-                [mode        GL_FILL])
-    (field [done? #f])
+    (init-field [legacy?  #f]
+                [verbose? #f]
+                [version  #f]
+                [clear-color (vec3)])
     (inherit with-gl-context)
-
-    (define/public (quit)
-      (set! done? #t))
 
     (define/public (info msg . args)
       (when verbose?
@@ -42,11 +36,11 @@
     (define-syntax-rule (send-config/info name expr)
       (let ([val expr]) (info "~a ~a" 'name val) (send config name val)))
 
-    ;; (send-config/info set-double-buffered #t)
+    (send-config/info set-double-buffered #t)
     ;; (send-config/info set-depth-size      24)
     ;; (send-config/info set-stencil-size     0)
     ;; (send-config/info set-multisample-size 0)
-    (send-config/info set-legacy?         #f)
+    (send-config/info set-legacy? legacy?)
 
     (super-new [style '(gl no-autoclear)]
                [gl-config config])
@@ -100,12 +94,7 @@
             (mouse-buttons event)
             (key-mods event)
             (send event get-time-stamp))
-      (super on-char event))
-
-    (define/public (clear)
-      (GL>> (glClear (bitwise-ior GL_COLOR_BUFFER_BIT
-                                  ;; GL_DEPTH_BUFFER_BIT
-                                  ))))))
+      (super on-char event))))
 
 (define (key-mods event)
   (apply append
@@ -124,8 +113,8 @@
          (if (send event get-middle-down) '(middle) null)
          (if (send event  get-right-down) '(right)  null)))
 
-(define (clear [canvas (current-canvas)])
-  (send canvas clear))
+(define (clear)
+  (glClear GL_COLOR_BUFFER_BIT))
 
-(define (swap-buffers [canvas (current-canvas)])
-  (send canvas swap-gl-buffers))
+(define (swap-buffers)
+  (send the-canvas swap-gl-buffers))

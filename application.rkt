@@ -12,33 +12,54 @@
 
 (provide (all-defined-out))
 
-(define current-frame (make-parameter #f))
+(define-the-things
+  [the-frame       current-frame]
+  [the-application current-application]
+  [the-process     current-process])
 
-(define-syntax the-frame (make-variable-like-transformer #'(current-frame)))
-
-(struct application (frame canvas on-start on-draw draw0-args)
-  #:transparent
+(struct application (frame canvas do-start do-draw do-idle)
   #:name gfx:application
   #:constructor-name application)
 
+(struct process (quit-sema)
+  #:name gfx:process
+  #:constructor-name process)
+
+(define (quit)
+  (semaphore-post (process-quit-sema the-process)))
+
 (define (run app)
-  (match-define (gfx:application frame canvas on-start on-draw draw0-args) app)
-  (thread
-   (λ ()
-     (define (info msg . args)
-       (when (get-field verbose? canvas)
-         (displayln (format "application: ~a" (apply format msg args)))))
-     (parameterize ([current-frame  frame ]
-                    [current-canvas canvas])
-       (info "starting")
-       (send canvas with-gl-context (λ () (on-start)))
-       (send frame show #t)
-       (send canvas focus)
-       (collect-garbage)
-       (let loop ([state draw0-args])
-         (collect-garbage 'incremental)
-         (define new-state
-           (call-with-values (λ () (GL> (apply on-draw state))) list))
-         (unless (get-field done? canvas) (loop new-state))))
-     (info "exiting")
-     (exit))))
+  (match-define (gfx:application frame canvas do-start do-draw do-idle) app)
+
+  (define (info msg . args)
+    (when (get-field verbose? canvas)
+      (displayln (format "application: ~a" (apply format msg args)))))
+
+  (parameterize ([current-frame  frame ]
+                 [current-canvas canvas])
+    (info "starting")
+    (when do-start (GL> (do-start)))
+
+    (send frame show #t)
+    (send canvas focus)
+
+    (define quit-sema (make-semaphore))
+    (thread (λ () (semaphore-wait quit-sema) (info "exiting") (exit)))
+
+    (when do-idle
+      (thread
+       (λ ()
+         (let loop ([state null])
+           (sync (system-idle-evt))
+           (loop (call-with-values (λ () (GL> (apply do-idle state))) list))))))
+
+    (when do-draw
+      (thread
+       (λ ()
+         (collect-garbage)
+         (let loop ([state null])
+           (collect-garbage 'incremental)
+           (sleep)
+           (loop (call-with-values (λ () (GL> (apply do-draw state))) list))))))
+
+    (process quit-sema)))
