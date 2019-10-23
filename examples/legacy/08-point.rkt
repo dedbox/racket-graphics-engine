@@ -10,6 +10,8 @@
 
 #:on-start
 (λ ()
+  (glPointSize 15.0)
+
   (define data (f32vector 0.0 0.0))
   (set! vbo (u32vector-ref (glGenBuffers 1) 0))
   (glBindBuffer GL_ARRAY_BUFFER vbo)

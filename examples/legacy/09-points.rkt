@@ -15,7 +15,11 @@
 
 (define vbo #f)
 
-#:on-start (λ () (set! vbo (make-vbo GL_ARRAY_BUFFER data GL_STATIC_DRAW)))
+#:on-start
+(λ ()
+  (glPointSize 15.0)
+  (set! vbo (make-vbo GL_ARRAY_BUFFER data GL_STATIC_DRAW)))
+
 #:on-draw
 (λ _
   (clear)
