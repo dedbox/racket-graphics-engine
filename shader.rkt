@@ -10,7 +10,7 @@
 
 (provide (all-defined-out))
 
-(struct shader (parsed printed >port-constructor)
+(struct shader (string)
   #:transparent
   #:name gfx:shader
   #:constructor-name make-shader)
@@ -25,5 +25,5 @@
         (module source-mod glsl form ...)
         (define name (let ()
                        (local-require 'source-mod)
-                       (make-shader parsed printed ->port)))
-        (define (name->port) ((shader->port-constructor name)))))])
+                       (make-shader the-string)))
+        (define (name->port) (open-input-string (shader-string name) 'name))))])
